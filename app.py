@@ -37,9 +37,6 @@ class User(Base):
      # User ve Address arasında bir ilişki
     addressvuser= relationship("Address", backref="user")
 
-# Veritabanı tablolarını oluştur
-Base.metadata.create_all(bind=engine)
-
 
 class UserCreate(BaseModel):
     name: str
@@ -142,8 +139,6 @@ class Address(Base):
 # # Tabloları sil
 # Base.metadata.drop_all(bind=engine)
 
-# Veritabanı tablolarını oluştur
-Base.metadata.create_all(bind=engine)
 
 class AddressCreate(BaseModel):
     user_id: int
@@ -291,4 +286,159 @@ async def get_addresses():
     finally:
         db.close()
 
+
+# Model tanımı
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100))
+
+# Veritabanı tablolarını oluştur
+Base.metadata.create_all(bind=engine)
+
+
+class OrganizationCreate(BaseModel):
+    name: str
+
+
+@app.post("/organizations")
+def create_organization(organization: OrganizationCreate):
+    db = SessionLocal()
+    try:
+        db_organization= Organization(name=organization.name)
+        db.add(db_organization)
+        db.commit()
+        db.refresh(db_organization)
+        return db_organization
+    except Exception as e:
+        db.rollback()  # Hata durumunda geri al
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+#Tüm öğeleri almak için endpoint
+@app.get("/organizations")
+async def get_organizations():
+    db = SessionLocal()
+    db_organizations = db.query(Organization).all() #select * from table(model)
+    return db_organizations
+
+
+@app.get("/organizations/{id}")
+async def get_address(id:int):
+    db = SessionLocal()
+    try:
+        # Belirtilen ID'ye göre kullanıcıyı al
+        organization = db.query(Organization).filter(Organization.id == id).first()
+        if organization is None:
+            return {"error": "User not found"}
+        return organization
+    finally:
+        db.close()
+
+
+
+@app.put("/organizations/{id}")
+async def update_organization(id: int, organization_update: OrganizationCreate):
+    db = SessionLocal()
+    try:
+        # Belirtilen ID'ye göre kullanıcıyı al
+        organization = db.query(Organization).filter(Organization.id == id).first()
+        if organization is None:
+            raise HTTPException(status_code=404, detail="Organization not found")
+        
+        # Kullanıcı bilgilerini güncelle
+        organization.name = organization_update.name
+
+
+        db.commit()
+        db.refresh(organization)
+        return organization
+    except Exception as e:
+        db.rollback()  # Hata durumunda geri al
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+
+@app.delete("/organizations/{id}")
+def delete_organization(id: int):
+    db = SessionLocal()
+    try:
+        # Kullanıcıyı ID'sine göre bul ve sil
+        organization_to_delete = db.query(Organization).filter(Organization.id == id).first()
+        if organization_to_delete:
+            db.delete(organization_to_delete)
+            db.commit()
+            return {"message": f"Organization with id {id} has been deleted."}
+        else:
+            return {"error": "Organization not found."}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+
+
+# Model tanımı
+class OrganizationUser(Base):
+    __tablename__ = "organization_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+
+      # Organization ve User arasında bir ilişki
+    reluser= relationship("Organization", backref="organization_users")
+    relorganization = relationship("User", backref="organization_users")
+
+# Veritabanı tablolarını oluştur
+Base.metadata.create_all(bind=engine)
+
+class OrganizationUserCreate(BaseModel):
+    organization_id:int
+    user_id:int
+
+from fastapi import HTTPException
+
+@app.post("/organization_users")
+def create_organization_user(org_user: OrganizationUserCreate):
+    db = SessionLocal()
+    try:
+        db_org_user = OrganizationUser(
+            organization_id=org_user.organization_id,
+            user_id=org_user.user_id
+        )
+        db.add(db_org_user)
+        db.commit()
+        db.refresh(db_org_user)
+        return db_org_user
+    except Exception as e:
+        db.rollback()  # Hata durumunda geri al
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.delete("/organization_users/{id}")
+def delete_organization_users(id: int):
+    db = SessionLocal()
+    try:
+        # Kullanıcıyı ID'sine göre bul ve sil
+        org_user_to_delete = db.query(OrganizationUser).filter(OrganizationUser.id == id).first()
+        if org_user_to_delete:
+            db.delete(org_user_to_delete)
+            db.commit()
+            return {"message": f"OrganizationUser with id {id} has been deleted."}
+        else:
+            return {"error": "OrganizationUser not found."}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
+        
 
