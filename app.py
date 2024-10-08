@@ -1,3 +1,4 @@
+# sudo docker compose up -d --build
 # app.py
 from fastapi import FastAPI
 
@@ -118,4 +119,109 @@ def delete_user(id: int):
     finally:
         db.close()
 
+
+#Second Model
+class Address(Base):
+    __tablename__ = "addresses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer)
+    city = Column(String(100))
+    state = Column(String(100))
+    postalcode = Column(Integer)
+    country = Column(String(100))
+
+# # Tabloları sil
+# Base.metadata.drop_all(bind=engine)
+
+# Veritabanı tablolarını oluştur
+Base.metadata.create_all(bind=engine)
+
+class AddressCreate(BaseModel):
+    user_id: int
+    city: str
+    state: str
+    postalcode: int
+    country: str
+
+@app.post("/addresses")
+def create_address(address: AddressCreate):
+    db = SessionLocal()
+    try:
+        db_address= Address(user_id=address.user_id, city=address.city, state=address.state, postalcode=address.postalcode, country=address.country)
+        db.add(db_address)
+        db.commit()
+        db.refresh(db_address)
+        return db_address
+    except Exception as e:
+        db.rollback()  # Hata durumunda geri al
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+# Tüm öğeleri almak için endpoint
+@app.get("/addresses")
+async def get_adresses():
+    db = SessionLocal()
+    db_addresses = db.query(Address).all() #select * from table(model)
+    return db_addresses
+
+
+@app.get("/addresses/{id}")
+async def get_address(id:int):
+    db = SessionLocal()
+    try:
+        # Belirtilen ID'ye göre kullanıcıyı al
+        address = db.query(Address).filter(Address.id == id).first()
+        if address is None:
+            return {"error": "User not found"}
+        return address
+    finally:
+        db.close()
+
+    s
+@app.put("/addresses/{id}")
+async def update_address(id: int, address_update: AddressCreate):
+    db = SessionLocal()
+    try:
+        # Belirtilen ID'ye göre kullanıcıyı al
+        address = db.query(Address).filter(Address.id == id).first()
+        if address is None:
+            raise HTTPException(status_code=404, detail="Address not found")
+        
+        # Kullanıcı bilgilerini güncelle
+        address.user_id = address_update.user_id
+        address.city = address_update.city
+        address.state = address_update.state
+        address.postalcode = address_update.postalcode
+        address.country = address_update.country
+
+        db.commit()
+        db.refresh(address)
+        return address
+    except Exception as e:
+        db.rollback()  # Hata durumunda geri al
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+
+@app.delete("/addresses/{id}")
+def delete_address(id: int):
+    db = SessionLocal()
+    try:
+        # Kullanıcıyı ID'sine göre bul ve sil
+        address_to_delete = db.query(Address).filter(Address.id == id).first()
+        if address_to_delete:
+            db.delete(address_to_delete)
+            db.commit()
+            return {"message": f"Address with id {id} has been deleted."}
+        else:
+            return {"error": "Address not found."}
+    except Exception as e:
+        db.rollback()
+        return {"error": str(e)}
+    finally:
+        db.close()
 
