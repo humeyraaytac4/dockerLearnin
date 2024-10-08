@@ -1,6 +1,10 @@
 # sudo docker compose up -d --build
 # app.py
 from fastapi import FastAPI
+from sqlalchemy.orm import relationship, backref
+from sqlalchemy import ForeignKey
+
+
 
 app = FastAPI()
 
@@ -30,6 +34,9 @@ class User(Base):
     name = Column(String(100))
     surname = Column(String(100))
 
+     # User ve Address arasında bir ilişki
+    addressvuser= relationship("Address", backref="user")
+
 # Veritabanı tablolarını oluştur
 Base.metadata.create_all(bind=engine)
 
@@ -56,12 +63,13 @@ def create_user(user: UserCreate):
 
 
 
-# Tüm öğeleri almak için endpoint
-@app.get("/users")
-async def get_items():
-    db = SessionLocal()
-    db_users = db.query(User).all() #select * from table(model)
-    return db_users
+# # Tüm öğeleri almak için endpoint
+# @app.get("/users")
+# async def get_items():
+#     db = SessionLocal()
+#     db_users = db.query(User).all() #select * from table(model)
+#     return db_users
+
 
 
 @app.get("/users/{id}")
@@ -125,7 +133,7 @@ class Address(Base):
     __tablename__ = "addresses"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer)
+    user_id = Column(Integer , ForeignKey("users.id")) 
     city = Column(String(100))
     state = Column(String(100))
     postalcode = Column(Integer)
@@ -159,13 +167,13 @@ def create_address(address: AddressCreate):
     finally:
         db.close()
 
-# Tüm öğeleri almak için endpoint
+""" Tüm öğeleri almak için endpoint
 @app.get("/addresses")
 async def get_adresses():
     db = SessionLocal()
     db_addresses = db.query(Address).all() #select * from table(model)
     return db_addresses
-
+ """
 
 @app.get("/addresses/{id}")
 async def get_address(id:int):
@@ -224,4 +232,63 @@ def delete_address(id: int):
         return {"error": str(e)}
     finally:
         db.close()
+
+
+# /users ile userları addresleriyle birlikte getirme
+@app.get("/users")
+async def get_users():
+    db = SessionLocal()
+    try:
+        # Kullanıcıları ve ilişkili adreslerini al
+        users = db.query(User).all()  # Tüm kullanıcıları al
+        result = []
+        for user in users:
+            user_data = {
+                "id": user.id,
+                "name": user.name,
+                "surname": user.surname,
+                "addresses": []
+            }
+            # Kullanıcının sadece kendi adreslerini al ve ekle
+            addresses = db.query(Address).filter(Address.user_id == user.id).all()
+            for address in addresses:
+                user_data["addresses"].append({
+                    "city": address.city,
+                    "state": address.state,
+                    "postalcode": address.postalcode,
+                    "country": address.country
+                })
+            result.append(user_data)
+        return result
+    finally:
+        db.close()
+
+ #users ile userları addresleriyle birlikte getirme
+@app.get("/addresses")
+async def get_addresses():
+    db = SessionLocal()
+    try:
+        # Tüm adresleri al
+        addresses = db.query(Address).all()
+        result = []
+
+        for address in addresses:
+            # Kullanıcıyı al
+            user = db.query(User).filter(User.id == address.user_id).first()  # Kullanıcıyı al
+
+            # Adres verilerini oluştur
+            address_data = {
+                "user_id": address.user_id,
+                "city": address.city,
+                "state": address.state,
+                "postalcode": address.postalcode,
+                "country": address.country,
+                "user_name": f"{user.name} {user.surname}" if user else None  # Kullanıcı adı ve soyadı
+            }
+            result.append(address_data)
+
+        return result
+    finally:
+        db.close()
+
 
