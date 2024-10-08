@@ -37,6 +37,9 @@ class User(Base):
      # User ve Address arasında bir ilişki
     addressvuser= relationship("Address", backref="user")
 
+    #User ve Organization arasındaki ilişki için
+    organizations = relationship("Organization", secondary="organization_users", back_populates="users")
+
 
 class UserCreate(BaseModel):
     name: str
@@ -294,6 +297,9 @@ class Organization(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100))
 
+    users = relationship("User", secondary="organization_users", back_populates="organizations")
+
+
 # Veritabanı tablolarını oluştur
 Base.metadata.create_all(bind=engine)
 
@@ -393,8 +399,8 @@ class OrganizationUser(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
 
       # Organization ve User arasında bir ilişki
-    reluser= relationship("Organization", backref="organization_users")
-    relorganization = relationship("User", backref="organization_users")
+    user = relationship("User", overlaps="organizations,organization_users")
+    organization = relationship("Organization", overlaps="users,organization_users")
 
 # Veritabanı tablolarını oluştur
 Base.metadata.create_all(bind=engine)
@@ -442,3 +448,62 @@ def delete_organization_users(id: int):
         db.close()
         
 
+
+
+# Kullanıcı bilgisi ile birlikte ilgili organizasyonlar
+@app.get("/userswo/{id}")
+async def get_user_with_organizations(id: int):
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(User.id == id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        organization = []
+
+        for org in user.organizations:
+            organization.append(
+                {
+                    "organization_id": org.id,
+                    "organization_name": org.name
+                }
+            )
+                
+        
+        return {
+            "user_id": user.id,
+            "name": user.name,
+            "surname": user.surname,
+            "organizations": organization
+        }
+    finally:
+        db.close()
+
+# Organizasyon bilgisi ile birlikte ilgili kullanıcılar
+@app.get("/organizationswu/{id}")
+async def get_organization_with_users(id: int):
+    db = SessionLocal()
+    try:
+        organization = db.query(Organization).filter(Organization.id == id).first()
+        if not organization:
+            raise HTTPException(status_code=404, detail="Organization not found")
+
+        users = []
+        for org_user in organization.users:
+            users.append(
+                {
+                "user_id": org_user.id,
+                "user_name": f"{org_user.name} {org_user.surname}"
+            }
+            )
+            
+           
+        
+        
+        return {
+            "organization_id": organization.id,
+            "organization_name": organization.name,
+            "users": users
+        }
+    finally:
+        db.close()
