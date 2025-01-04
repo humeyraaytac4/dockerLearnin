@@ -6,3 +6,5 @@ pymysql  # MySQL için gerekli
 databases[mysql]  # Asenkron veritabanı bağlantısı için
 mysqlclient
 mysql-connector-python
+faker
+alembic
